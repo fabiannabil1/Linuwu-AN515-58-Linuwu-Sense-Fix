@@ -1,110 +1,119 @@
-# Linuwu-Sense Fix untuk Acer Nitro AN515-58
+# Linuwu-Sense Fix for Acer Nitro AN515-58
 
-Paket ini berisi Linuwu-Sense/DAMX kernel module yang sudah dipatch untuk Acer Nitro AN515-58 dengan keyboard RGB 4-zone.
+This package contains the patched `Linuwu-Sense` / `DAMX` kernel module tailored for the Acer Nitro AN515-58 with a 4-zone RGB keyboard.
 
-Patch ini dibuat dari hasil testing langsung pada:
+This patch was created based on direct testing on:
 
-- Model: `Nitro AN515-58`
-- Kernel saat testing: `6.18.34-1-lts`
-- Module: `linuwu_sense`
-- RGB keyboard: 4-zone, kompatibel dengan jalur Jafar/facer
+* Model: `Nitro AN515-58`
+* Kernel during testing: `6.18.34-1-lts`
+* Module: `linuwu_sense`
+* RGB keyboard: 4-zone, compatible with Jafar/facer pipeline
 
-## Fitur yang Sudah Terbukti Jalan
+## Verified Working Features
 
-- Fan control Linuwu/DAMX tetap jalan.
-- Battery limiter/control Linuwu/DAMX tetap jalan.
-- RGB static per-zone jalan.
-- RGB breathing mode jalan.
-- Dynamic RGB payload disesuaikan dengan implementasi Jafar.
-- Power profile `quiet`, `balanced`, dan `balanced-performance` tidak balik sendiri ke `balanced`.
+* Linuwu/DAMX fan control remains functional.
+* Linuwu/DAMX battery limiter/control remains functional.
+* Static per-zone RGB works.
+* Breathing mode RGB works.
+* Dynamic RGB payload adapted to Jafar's implementation.
+* Power profiles (`quiet`, `balanced`, and `balanced-performance`) no longer revert unexpectedly to `balanced`.
 
-## Perubahan Penting
+## Key Changes
 
-Patch ini menambahkan/fix:
+This patch adds/fixes:
 
-- Quirk khusus `AN515-58`.
-- Static RGB 4-zone memakai WMI method `6` dengan payload `{zone, red, green, blue}`.
-- Enable semua zone memakai `SET_GAMING_LED`, bukan `GET_GAMING_LED`.
-- Static mode activation memakai payload 16-byte ke method `20` seperti `facer_rgb.py`.
-- Dynamic mode payload dibuat sama dengan Jafar untuk AN515-58.
-- Breathing mode tidak memaksa `speed=0` pada AN515-58.
-- Deteksi AC power memakai Linux power supply API lebih dulu, bukan WMI `BAT_STATUS` yang salah baca di AN515-58.
+* Dedicated quirk for `AN515-58`.
+* 4-zone static RGB using WMI method `6` with the payload `{zone, red, green, blue}`.
+* Enabling all zones using `SET_GAMING_LED` instead of `GET_GAMING_LED`.
+* Static mode activation using a 16-byte payload to method `20` similar to `facer_rgb.py`.
+* Dynamic mode payload aligned with Jafar's implementation for the AN515-58.
+* Breathing mode no longer forces `speed=0` on the AN515-58.
+* AC power detection uses the Linux power supply API first, avoiding incorrect readings from WMI `BAT_STATUS` on the AN515-58.
 
-## Install
+## Installation
 
-Jalankan dari folder ini:
+Run from this folder:
 
 ```bash
 make
 sudo make install
+
 ```
 
-Atau pakai script install + reload:
+Or use the install + reload script:
 
 ```bash
 sudo ./scripts/install-and-reload.sh
+
 ```
 
-Kalau module lama masih aktif dan hasil patch belum kebaca, reload manual:
+If the old module is still active and the patch changes are not detected, reload manually:
 
 ```bash
 sudo systemctl stop linuwu_sense.service 2>/dev/null || true
 sudo rmmod linuwu_sense 2>/dev/null || true
 sudo modprobe linuwu_sense
 sudo systemctl start linuwu_sense.service 2>/dev/null || true
+
 ```
 
-Cek versi runtime sama dengan file module:
+Verify that the runtime version matches the module file:
 
 ```bash
 cat /sys/module/linuwu_sense/srcversion
 modinfo /lib/modules/$(uname -r)/kernel/drivers/platform/x86/linuwu_sense.ko | grep '^srcversion'
+
 ```
 
-## Tes RGB
+## RGB Testing
 
-Set warna static 4-zone:
+Set 4-zone static colors:
 
 ```bash
 sudo ./scripts/test-rgb-static.sh
+
 ```
 
-Hasil yang diharapkan:
+Expected output:
 
-- Zone 1 merah
-- Zone 2 hijau
-- Zone 3 biru
-- Zone 4 putih
+* Zone 1: Red
+* Zone 2: Green
+* Zone 3: Blue
+* Zone 4: White
 
-Tes breathing magenta:
+Test magenta breathing mode:
 
 ```bash
 sudo ./scripts/test-rgb-breathing.sh
+
 ```
 
-Manual command:
+Manual commands:
 
 ```bash
 BASE=/sys/module/linuwu_sense/drivers/platform:acer-wmi/acer-wmi
 echo ff0000,00ff00,0000ff,ffffff,100 | sudo tee "$BASE/four_zoned_kb/per_zone_mode"
 echo 1,4,100,0,255,0,255 | sudo tee "$BASE/four_zoned_kb/four_zone_mode"
+
 ```
 
-## Tes Power Profile
+## Power Profile Testing
 
-Mode yang tersedia pada AN515-58 ini:
+Available modes on this AN515-58 model:
 
 ```text
 quiet
 balanced
 balanced-performance
+
 ```
 
-Cek:
+Check:
 
 ```bash
 cat /sys/firmware/acpi/platform_profile_choices
 cat /sys/firmware/acpi/platform_profile
+
 ```
 
 Set profile:
@@ -113,55 +122,61 @@ Set profile:
 sudo ./scripts/set-power-profile.sh quiet
 sudo ./scripts/set-power-profile.sh balanced
 sudo ./scripts/set-power-profile.sh balanced-performance
+
 ```
 
-Catatan: jika UI DAMX punya label `Performance`, map ke `balanced-performance`, bukan `performance`.
+Note: If the DAMX UI has a `Performance` label, map it to `balanced-performance`, not `performance`.
 
 ## Troubleshooting
 
-Jika RGB tidak muncul:
+If RGB does not appear:
 
 ```bash
 ls /sys/module/linuwu_sense/drivers/platform:acer-wmi/acer-wmi/four_zoned_kb
 dmesg | grep -iE 'linuwu|acer|wmi|rgb|keyboard|error|fail'
+
 ```
 
-Jika power profile balik ke `balanced`, cek AC:
+If the power profile reverts to `balanced`, check the AC status:
 
 ```bash
 cat /sys/class/power_supply/ACAD/online
+
 ```
 
-Harus `1` saat charger terpasang.
+It should be `1` when the charger is plugged in.
 
-Jika module tidak bisa load karena konflik:
+If the module fails to load due to conflicts:
 
 ```bash
 lsmod | grep -E 'linuwu|facer|acer_wmi'
+
 ```
 
-Jangan load `facer` dan `linuwu_sense` bersamaan.
+Do not load `facer` and `linuwu_sense` at the same time.
 
 ## Rollback
 
-Uninstall module patch:
+Uninstall the patched module:
 
 ```bash
 sudo make uninstall
+
 ```
 
-Atau load kembali module kernel bawaan:
+Or load back the default kernel module:
 
 ```bash
 sudo rmmod linuwu_sense 2>/dev/null || true
 sudo modprobe acer_wmi
+
 ```
 
-## Catatan
+## Notes
 
-Patch ini fokus pada Acer Nitro AN515-58. Model lain bisa saja memakai WMI payload berbeda, jadi jangan anggap aman untuk semua Acer Nitro/Predator tanpa testing.
+This patch focuses specifically on the Acer Nitro AN515-58. Other models may use different WMI payloads, so do not assume it is safe for all Acer Nitro/Predator laptops without testing.
 
-Reference yang dipakai untuk jalur RGB:
+References used for the RGB pipeline:
 
-- JafarAkhondali `acer-predator-turbo-and-rgb-keyboard-linux-module`
-- `docs/facer_rgb_reference.py`
+* JafarAkhondali `acer-predator-turbo-and-rgb-keyboard-linux-module`
+* `docs/facer_rgb_reference.py`
